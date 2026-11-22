@@ -15,6 +15,7 @@ jobs:
           mkdir -p sample && cd sample
           curl -sf $B/manifest.json -o manifest.json
           curl -sf $B/fronts.json -o fronts.json
+          curl -sf $B/terrain.bin.gz -o terrain.bin.gz
           python3 - <<'PY'
           import json, subprocess
           m = json.load(open('manifest.json')); B = 'https://josht3113.github.io/contextclimate-surface-data/'
