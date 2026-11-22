@@ -1,0 +1,75 @@
+name: Update surface data
+
+# Hourly: new HRRR analyses (the past 24 h are kept), the newest complete 18-hour
+# HRRR forecast, WPC coded surface bulletins, and a check against METARs.
+# HRRR analyses post about 50 min after the hour; GitHub's scheduler can run late.
+on:
+  schedule:
+    - cron: "56 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write   # keepalive: stops GitHub auto-disabling the schedule
+
+concurrency:
+  group: surface-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore published window
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: surface-${{ github.run_id }}
+          restore-keys: surface-
+
+      - name: Build
+        run: python scripts/build.py --data data
+
+      - name: Save published window
+        if: always() && hashFiles('data/site/manifest.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: surface-${{ github.run_id }}
+
+      - name: Add site files
+        run: |
+          cp site/index.html data/site/index.html
+          touch data/site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: data/site
+
+      - name: Keepalive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable" || true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

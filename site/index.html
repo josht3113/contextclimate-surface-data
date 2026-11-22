@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Surface Data Status</title>
+<style>
+  :root { --bg:#1E2320; --card:#262B27; --ink:#E8E6DF; --dim:#9AA39C; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 "Public Sans", system-ui, sans-serif; }
+  main { max-width:680px; margin:40px auto; padding:0 16px; }
+  h1 { font:600 24px/1.2 "Zilla Slab", Georgia, serif; margin:0 0 16px; }
+  .card { background:var(--card); border-radius:10px; padding:16px 20px; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:6px 18px; margin:0; }
+  dt { color:var(--dim); font:14px "Courier Prime", ui-monospace, monospace; }
+  dd { margin:0; }
+</style>
+</head>
+<body>
+<main>
+<h1>ContextClimate surface data</h1>
+<div class="card"><dl id="s"><dt>Status</dt><dd>Loading…</dd></dl></div>
+</main>
+<script>
+fetch('manifest.json', { cache: 'no-store' }).then(r => r.json()).then(m => {
+  const v = m.validation || {}, f = x => x ? `bias ${x.bias}, RMSE ${x.rmse} (n ${x.n})` : '—';
+  const rows = [['Updated', m.updated], ['Source', m.source], ['Analyses', `${m.analyses.length} (${m.analyses[0]}–${m.analyses[m.analyses.length - 1]} UTC)`],
+    ['Forecast run', m.forecast ? `${m.forecast.cycle} UTC, +1–${m.forecast.hours.length} h` : '—'],
+    ['Check vs METARs', v.valid || '—'], ['Temperature °F', f(v.temp_F)], ['Dewpoint °F', f(v.dew_F)], ['Pressure mb', f(v.mslp_mb)],
+    ['Wind direction', v.wind_dir_mae_deg != null ? `mean error ${v.wind_dir_mae_deg}° (n ${v.wind_n})` : '—']];
+  document.getElementById('s').innerHTML = rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+}).catch(e => { document.getElementById('s').innerHTML = '<dt>Status</dt><dd>manifest unavailable</dd>'; });
+</script>
+</body>
+</html>
