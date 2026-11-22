@@ -1,0 +1,140 @@
+{
+ "updated": "2026-11-22T17:34Z",
+ "source": "NOAA High-Resolution Rapid Refresh (HRRR) CONUS, NOAA Open Data Dissemination (AWS)",
+ "grid": {
+  "west": -126.0,
+  "south": 22.0,
+  "res": 0.125,
+  "nx": 489,
+  "ny": 233
+ },
+ "vars": [
+  {
+   "name": "t",
+   "grib": "TMP",
+   "level": "2 m above ground",
+   "scale": 0.1,
+   "offset": 0.0,
+   "unit": "\u00b0F"
+  },
+  {
+   "name": "td",
+   "grib": "DPT",
+   "level": "2 m above ground",
+   "scale": 0.1,
+   "offset": 0.0,
+   "unit": "\u00b0F"
+  },
+  {
+   "name": "u",
+   "grib": "UGRD",
+   "level": "10 m above ground",
+   "scale": 0.01,
+   "offset": 0.0,
+   "unit": "m/s"
+  },
+  {
+   "name": "v",
+   "grib": "VGRD",
+   "level": "10 m above ground",
+   "scale": 0.01,
+   "offset": 0.0,
+   "unit": "m/s"
+  },
+  {
+   "name": "p",
+   "grib": "MSLMA",
+   "level": "mean sea level",
+   "scale": 0.1,
+   "offset": 1000.0,
+   "unit": "mb"
+  },
+  {
+   "name": "refc",
+   "grib": "REFC",
+   "level": "entire atmosphere",
+   "scale": 0.5,
+   "offset": 0.0,
+   "unit": "dBZ"
+  }
+ ],
+ "missing": -32768,
+ "analyses": [
+  "2026112116",
+  "2026112117",
+  "2026112118",
+  "2026112119",
+  "2026112120",
+  "2026112121",
+  "2026112122",
+  "2026112123",
+  "2026112200",
+  "2026112201",
+  "2026112202",
+  "2026112203",
+  "2026112204",
+  "2026112205",
+  "2026112206",
+  "2026112207",
+  "2026112208",
+  "2026112209",
+  "2026112210",
+  "2026112211",
+  "2026112212",
+  "2026112213",
+  "2026112214",
+  "2026112215",
+  "2026112216"
+ ],
+ "forecast": {
+  "cycle": "2026112216",
+  "hours": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18
+  ]
+ },
+ "terrain": {
+  "url": "terrain.bin.gz",
+  "scale": 1,
+  "offset": 0,
+  "unit": "m"
+ },
+ "fronts": "fronts.json",
+ "validation": {
+  "valid": "2026-11-22T16:00Z",
+  "temp_F": {
+   "n": 334,
+   "bias": 0.18,
+   "rmse": 1.81
+  },
+  "dew_F": {
+   "n": 334,
+   "bias": 0.56,
+   "rmse": 2.0
+  },
+  "mslp_mb": {
+   "n": 317,
+   "bias": -0.34,
+   "rmse": 1.11
+  },
+  "wind_dir_mae_deg": 9.7,
+  "wind_dir_mae_deg_if_rotated_other_way": 13.8,
+  "wind_n": 110
+ }
+}
