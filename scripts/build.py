@@ -148,6 +148,14 @@ def main():
             p.unlink()
     analyses = sorted(p.name.split(".")[0] for p in (site / "a").glob("*.bin.gz"))
 
+    # static model terrain, once
+    tpath = site / "terrain.bin.gz"
+    if not tpath.exists():
+        z = hrrr.terrain(C, cache)
+        if z is not None:
+            tpath.write_bytes(hrrr.encode_plane(z))
+            log(f"terrain: {tpath.stat().st_size / 1024:.0f} KB")
+
     # forecast: the newest run with every hour posted (HRRR posts hours out of order)
     fc = None
     for k in range(0, 4):
@@ -198,6 +206,7 @@ def main():
         "missing": hrrr.MISSING,
         "analyses": analyses,
         "forecast": forecast,
+        "terrain": {"url": "terrain.bin.gz", "scale": 1, "offset": 0, "unit": "m"} if tpath.exists() else None,
         "fronts": "fronts.json" if (site / "fronts.json").exists() else None,
         "validation": val or old.get("validation"),
     }

@@ -201,6 +201,28 @@ def build_frame(msgs, regrid_cache: dict):
     return out
 
 
+def terrain(cycle: datetime, regrid_cache: dict):
+    """Model surface height (m) on the output grid, from an f00 file."""
+    rows = idx(cycle, 0)
+    hit = next(((a, b) for a, b, var, lev, _ in rows if var == "HGT" and lev == "surface"), None)
+    if hit is None:
+        return None
+    a, b = hit
+    r = get(file_url(cycle, 0), headers={"Range": f"bytes={a}-" if b < 0 else f"bytes={a}-{b}"})
+    if r is None:
+        return None
+    z, _ = decode(r.content)
+    if "rg" not in regrid_cache:
+        regrid_cache["rg"] = Regridder(*decode._ll)
+    return regrid_cache["rg"](z)
+
+
+def encode_plane(a: np.ndarray, scale: float = 1.0, offset: float = 0.0) -> bytes:
+    q = np.where(np.isfinite(a), np.round((a - offset) / scale), MISSING)
+    b = np.frombuffer(np.clip(q, MISSING, 32767).astype("<i2").tobytes(), dtype=np.uint8).reshape(-1, 2)
+    return gzip.compress(np.concatenate([b[:, 0], b[:, 1]]).tobytes(), compresslevel=9, mtime=0)
+
+
 def encode(frame: dict) -> bytes:
     planes = []
     for name, _, scale, offset, _ in VARS:
