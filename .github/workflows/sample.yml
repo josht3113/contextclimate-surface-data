@@ -1,0 +1,28 @@
+name: debug sample
+on:
+  push:
+    branches: [debug-sample]
+    paths: [.github/workflows/sample.yml]
+permissions:
+  contents: write
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          B=https://josht3113.github.io/contextclimate-surface-data
+          mkdir -p sample && cd sample
+          curl -sf $B/manifest.json -o manifest.json
+          curl -sf $B/fronts.json -o fronts.json
+          python3 - <<'PY'
+          import json, subprocess
+          m = json.load(open('manifest.json')); B = 'https://josht3113.github.io/contextclimate-surface-data/'
+          files = ['a/%s.bin.gz' % k for k in m['analyses']]
+          if m['forecast']: files += ['f/%s/%02d.bin.gz' % (m['forecast']['cycle'], h) for h in m['forecast']['hours']]
+          for f in files:
+              subprocess.run(['curl', '-sf', '--create-dirs', B + f, '-o', f], check=True)
+          print(len(files), 'files')
+          PY
+          cd .. && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sample && git commit -qm "sample data" && git push -q
