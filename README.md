@@ -9,6 +9,7 @@ Surface Analysis Builder, published to GitHub Pages.
 - `a/YYYYMMDDHH.bin.gz` — HRRR analysis (forecast hour 0) for each of the past 24 hours (UTC).
 - `f/YYYYMMDDHH/FF.bin.gz` — the newest complete HRRR run, forecast hours 1–18.
 - `fronts.json` — NWS Weather Prediction Center coded surface bulletins (fronts, highs, lows) in the same window.
+- `terrain.bin.gz` — HRRR model surface height (m), one int16 plane, written once.
 
 Frame files: int16 little-endian planes `t, td, u, v, p, refc` on a 0.125° grid
 (126°W–65°W, 22°N–51°N; rows south→north, columns west→east). Bytes shuffled
