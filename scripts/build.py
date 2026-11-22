@@ -148,23 +148,27 @@ def main():
             p.unlink()
     analyses = sorted(p.name.split(".")[0] for p in (site / "a").glob("*.bin.gz"))
 
-    # forecast: the newest run whose last hour is posted
+    # forecast: the newest run with every hour posted (HRRR posts hours out of order)
     fc = None
     for k in range(0, 4):
         c = C - timedelta(hours=k)
-        if hrrr.posted(c, FCST_H):
+        if all(hrrr.posted(c, fh) for fh in range(FCST_H, 0, -1)):
             fc = c
             break
-    fdir = site / "f" / hrrr.tkey(fc) if fc else None
-    if fc and not (fdir / f"{FCST_H:02d}.bin.gz").exists():
-        log(f"forecast run {fc:%Y-%m-%d %HZ}")
-        ok = all(write_frame(fdir / f"{fh:02d}.bin.gz", fc, fh, cache) for fh in range(1, FCST_H + 1))
-        if not ok:
-            shutil.rmtree(fdir, ignore_errors=True)
-            fdir = None
-    fdirs = sorted(d for d in (site / "f").iterdir() if (d / f"{FCST_H:02d}.bin.gz").exists())
+    if fc:
+        fdir = site / "f" / hrrr.tkey(fc)
+        todo = [fh for fh in range(1, FCST_H + 1) if not (fdir / f"{fh:02d}.bin.gz").exists()]
+        if todo:
+            log(f"forecast run {fc:%Y-%m-%d %HZ}")
+        for fh in todo:
+            if not write_frame(fdir / f"{fh:02d}.bin.gz", fc, fh, cache):
+                log(f"  f{fh:02d} not available yet; will resume next run")
+                break
+    complete = lambda d: all((d / f"{fh:02d}.bin.gz").exists() for fh in range(1, FCST_H + 1))
+    fdirs = sorted(d for d in (site / "f").iterdir() if complete(d))
+    newest = fdirs[-1].name if fdirs else ""
     for d in list((site / "f").iterdir()):
-        if not fdirs or d != fdirs[-1]:
+        if d.name < newest or (d.name > newest and fc and d.name != hrrr.tkey(fc)):
             shutil.rmtree(d, ignore_errors=True)
     fdirs = fdirs[-1:]
     forecast = {"cycle": fdirs[-1].name, "hours": list(range(1, FCST_H + 1))} if fdirs else None
