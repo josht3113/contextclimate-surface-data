@@ -570,6 +570,7 @@ def run(data: Path, force=False, now=None, offline=False):
                 return
         except Exception:                     # noqa: BLE001
             pass
+    log(f"  ({time.time() - t_start:.0f} s) IBTrACS")
     tc_by_t = ibtracs_rows(side)
     oni = parse_oni(refresh(side / "oni.txt", CPC["oni"], 24))
     nao = parse_monthly(refresh(side / "nao.txt", CPC["nao"], 24))

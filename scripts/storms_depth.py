@@ -33,6 +33,8 @@ R1_TABLE = HERE.parent / "static" / "storm-depth-r1.csv.gz"
 GFS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 UA = {"User-Agent": "contextclimate-surface-data (github.com/josht3113)"}
 AZ = np.radians(np.arange(0, 360, 15))
+import threading                                         # noqa: E402
+_GRIB_LOCK = threading.Lock()
 
 
 def ring(lat, lon, r_km=RING_KM):
@@ -91,7 +93,7 @@ def fetch_gfs(key: str, cache: Path):
         if k:
             time.sleep(3 * k)
         try:
-            r = requests.get(base + ".idx", headers=UA, timeout=60)
+            r = requests.get(base + ".idx", headers=UA, timeout=20)
             if r.status_code in (403, 404):
                 return None
             r.raise_for_status()
@@ -100,12 +102,13 @@ def fetch_gfs(key: str, cache: Path):
                 if ":PRMSL:mean sea level:" in l:
                     a = int(l.split(":")[1])
                     b = int(lines[i + 1].split(":")[1]) - 1 if i + 1 < len(lines) else ""
-                    g = requests.get(base, headers={**UA, "Range": f"bytes={a}-{b}"}, timeout=60)
+                    g = requests.get(base, headers={**UA, "Range": f"bytes={a}-{b}"}, timeout=30)
                     g.raise_for_status()
                     import pygrib                       # noqa: PLC0415
                     tmp = cache / f".{key}.grb2"
                     tmp.write_bytes(g.content)
-                    v = pygrib.open(str(tmp)).read(1)[0].values / 100.0
+                    with _GRIB_LOCK:
+                        v = pygrib.open(str(tmp)).read(1)[0].values / 100.0
                     tmp.unlink()
                     nh = np.asarray(v[:91], dtype=np.float16)     # rows 90°N → 0°
                     cache.mkdir(parents=True, exist_ok=True)
@@ -133,11 +136,23 @@ class Depth:
         self.fields = {}
         new = [k for k in sorted({k6 for k in keys_needed if k > R1_END for k6 in six_hourly(k)})]
         got = miss = 0
+        todo = [k for k in new if fetch and not gfs_path(cache, k).exists()]
+        if todo:                                    # first run: ~1,000 analyses, fetched 12 at a time
+            from concurrent.futures import ThreadPoolExecutor   # noqa: PLC0415
+            cache.mkdir(parents=True, exist_ok=True)
+            t0 = time.time()
+            done = [0]
+            def one(k):
+                r = fetch_gfs(k, cache)
+                done[0] += 1
+                if done[0] % 200 == 0:
+                    log(f"    {done[0]}/{len(todo)} ({time.time() - t0:.0f} s)")
+                return r
+            with ThreadPoolExecutor(12) as ex:
+                list(ex.map(one, todo))
+            log(f"  depth: fetched {len(todo)} GFS analyses ({time.time() - t0:.0f} s)")
         for k in new:
-            if fetch or gfs_path(cache, k).exists():
-                f = fetch_gfs(k, cache) if fetch else np.load(gfs_path(cache, k)).astype(np.float32)
-            else:
-                f = None
+            f = np.load(gfs_path(cache, k)).astype(np.float32) if gfs_path(cache, k).exists() else None
             if f is None:
                 miss += 1
             else:
