@@ -10,15 +10,15 @@ Inputs (kept in the Actions cache with the rest of data/, refetched when missing
 Published (data/site/storms/):
   index.json            years, latest analysis, climate indices, method constants
   tracks/YYYY.json.gz   storms that formed in YYYY
-  b/YYYY/MM.json.gz     the month's bulletins (fronts + lows) at 00 and 12 UTC; the two most
-                        recent months keep every 3-hourly analysis
+  b/YYYY/MM.json.gz     the month's bulletins (fronts + lows), every 3-hourly analysis
 
 Storm record (all times are whole hours since 1970-01-01 UTC):
   id   "YYYYMMDDHH-k" (genesis analysis, k-th storm that formed then)
   t    genesis time
   ty   P Pacific · A Alberta clipper · C Colorado/lee · G Gulf · E East Coast · T tropical · O other
   f    flags: n nor'easter (Oct–Apr, up or out along the coast, within 600 km of 40°N 70°W) · b bomb · j redevelopment jump · q quasi-stationary or heat low ·
-       m merged into another low · a still active · y active and younger than 24 h
+       m merged into another low · a still active · y active and younger than 24 h ·
+       k deep (see SIG_*) · s significant (k, bomb or tropical) · u passed within 300 km of the lower 48
   mi   Miller type for nor'easters ("A"/"B"), when it can be told
   tc   tropical cyclone name (IBTrACS), when the storm was or became one
   pm   lowest pressure (mb), tm its hour offset
@@ -30,6 +30,8 @@ Storm record (all times are whole hours since 1970-01-01 UTC):
   bw   bomb windows [[i0, i1], ...] (point indices, 24 h apart)
   sd   faint pieces [{h, la, lo, p}]: the primary after a jump, the secondary before it
   x    point-index ranges [[i0, i1], ...] taken from IBTrACS (tropical / post-tropical positions)
+  d    depth (mb) at each point: 750 km ring-mean pressure minus central pressure (-99 = unknown); dm its maximum
+  Positions are smoothed (storms_smooth.py); pressures are WPC's.
 """
 from __future__ import annotations
 
@@ -54,6 +56,8 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import storms_csb as csb                      # noqa: E402
 import storms_track as trk                    # noqa: E402
+import storms_smooth as smo                   # noqa: E402
+import storms_depth as dep                    # noqa: E402
 
 VERSION = 1
 FIRST_YEAR = csb.FIRST_YEAR
@@ -72,6 +76,28 @@ CPC = {
     "pna": "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/norm.pna.monthly.b5001.current.ascii",
 }
 ONI_SEASONS = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
+
+# significant storm: the deepest low within PRIMARY_KM, at least SIG_DEPTH mb below the ring mean,
+# for SIG_HOURS in all (12 h for a storm still going) — flag k; bombs and tropical cyclones always
+PRIMARY_KM = 800.0
+SIG_DEPTH = 8.0
+SIG_HOURS = 24
+SIG_HOURS_ACTIVE = 12
+US_MASK = None
+
+
+def us48(lat, lon):
+    """Within 300 km of the lower 48 (precomputed 0.25° mask)."""
+    global US_MASK
+    if US_MASK is None:
+        import base64
+        m = json.loads(Path(os.path.dirname(os.path.abspath(__file__)), "us48_mask.json").read_text())
+        bits = np.unpackbits(np.frombuffer(base64.b64decode(m["bits"]), np.uint8))[: m["ny"] * m["nx"]]
+        US_MASK = (m, bits.reshape(m["ny"], m["nx"]).astype(bool))
+    m, g = US_MASK
+    i, j = int((lat - m["lat0"]) / m["res"]), int((lon - m["lon0"]) / m["res"])
+    return 0 <= i < m["ny"] and 0 <= j < m["nx"] and bool(g[i, j])
+
 
 TYPES = [
     ["P", "Pacific"], ["A", "Alberta clipper"], ["C", "Colorado / lee"], ["G", "Gulf"],
@@ -117,6 +143,7 @@ def fetch(url, timeout=300):
 
 
 OFFLINE = False
+DEPTH_EXTRA = None          # dev only: {(key, lat10, lon10): depth} for analyses without a cached GFS field
 
 
 def refresh(path: Path, url: str, max_age_h: float):
@@ -337,16 +364,38 @@ def load_frames(broot: Path):
     return frames, months
 
 
-def analyse(storms, latest_t, tc_names):
+def primary(lows, lat, lon, p):
+    """No deeper low within PRIMARY_KM at the same analysis."""
+    if lows is None or not len(lows):
+        return True
+    deeper = lows[:, 2] < p - 0.01
+    if not deeper.any():
+        return True
+    d = trk.hav(lat, lon, lows[deeper, 0], lows[deeper, 1])
+    return bool((d > PRIMARY_KM).all())
+
+
+def analyse(storms, latest_t, tc_names, depth=None, lows_at=None):
     out = []
     end_index = defaultdict(list)                  # hour → [(storm k, lat, lon)] for merge checks
-    pts_all = [s.points() for s in storms]
+    pts_all, deps, prims = [], [], []
+    for s in storms:
+        pts = s.points()
+        dd, pp = [], []
+        for t, la, lo, p, _j, _src in pts:
+            key = hkey(t)
+            dd.append(depth(key, la, lo, p) if depth else None)
+            pp.append(primary(lows_at.get(t) if lows_at else None, la, lo, p))
+        deps.append(dd); prims.append(pp)
+        coarse = all(float(p[1]).is_integer() and float(p[2]).is_integer() for p in pts if not p[5])
+        pts_all.append(smo.smooth_points(pts, coarse))
     for k, pts in enumerate(pts_all):
         for t, la, lo, p, *_ in pts:
             end_index[t].append((k, la, lo))
     for k, (s, pts) in enumerate(zip(storms, pts_all)):
         if len(pts) < 2:
             continue
+        dd, pp = deps[k], prims[k]
         t0, t1 = pts[0][0], pts[-1][0]
         life = t1 - t0
         active = t1 >= latest_t - trk.MAX_COAST_H + 3
@@ -418,6 +467,15 @@ def analyse(storms, latest_t, tc_names):
                 if kk != k and pts_all[kk][-1][0] > t1 + 6 and trk.hav(pts[-1][1], pts[-1][2], a, b) <= 400:
                     flags.add("m")
                     break
+        # depth, significance, lower-48 scope
+        known = [d for d in dd if d is not None]
+        deep_h = 3 * sum(1 for d, q in zip(dd, pp) if d is not None and q and d >= SIG_DEPTH)
+        if deep_h >= (SIG_HOURS_ACTIVE if active else SIG_HOURS):
+            flags.add("k")
+        if "k" in flags or "b" in flags or ty == "T":
+            flags.add("s")
+        if any(us48(p[1], p[2]) for p in pts):
+            flags.add("u")
         im = int(pr.argmin())
         rec = {
             "t": t0, "ty": ty, "f": "".join(sorted(flags)),
@@ -428,6 +486,9 @@ def analyse(storms, latest_t, tc_names):
             "lo": [int(round(p[2] * 10)) for p in pts],
             "p": [int(p[3]) for p in pts],
         }
+        if known:
+            rec["d"] = [-99 if d is None else int(round(d)) for d in dd]
+            rec["dm"] = int(round(max(known)))
         if mi:
             rec["mi"] = mi
         if tc:
@@ -477,7 +538,7 @@ def write_gz(path: Path, obj):
 
 def code_hash():
     h = hashlib.sha1()
-    for f in ("storms_csb.py", "storms_track.py", "storms_build.py"):
+    for f in ("storms_csb.py", "storms_track.py", "storms_smooth.py", "storms_depth.py", "storms_build.py"):
         h.update(Path(os.path.dirname(os.path.abspath(__file__)), f).read_bytes())
     return h.hexdigest()[:12]
 
@@ -496,7 +557,10 @@ def run(data: Path, force=False, now=None, offline=False):
     if not frames:
         raise SystemExit("storms: no bulletins")
     latest_t = frames[-1][0]
-    stamp = {"latest": hkey(latest_t), "code": code_hash(), "n": len(frames)}
+    depth = dep.Depth(side / "gfs", [hkey(t) for t, _ in frames if year_of(t) >= FIRST_YEAR], log=log, fetch=not offline)
+    if DEPTH_EXTRA:
+        depth.extra = DEPTH_EXTRA
+    stamp = {"latest": hkey(latest_t), "code": code_hash(), "n": len(frames), "gfs": len(depth.fields)}
     prev = site / "index.json"
     if not force and prev.exists():
         try:
@@ -506,6 +570,7 @@ def run(data: Path, force=False, now=None, offline=False):
                 return
         except Exception:                     # noqa: BLE001
             pass
+    log(f"  ({time.time() - t_start:.0f} s) IBTrACS")
     tc_by_t = ibtracs_rows(side)
     oni = parse_oni(refresh(side / "oni.txt", CPC["oni"], 24))
     nao = parse_monthly(refresh(side / "nao.txt", CPC["nao"], 24))
@@ -516,7 +581,8 @@ def run(data: Path, force=False, now=None, offline=False):
     frames, tc_names = inject_tc(frames, tc_by_t)
     tracks = trk.link(frames)
     storms = trk.build_storms(tracks)
-    recs = analyse(storms, latest_t, tc_names)
+    lows_at = {t: lows for t, lows in frames}
+    recs = analyse(storms, latest_t, tc_names, depth, lows_at)
     log(f"  {len(tracks)} tracklets → {len(recs)} storms ({time.time() - t_start:.0f} s)")
 
     by_year = defaultdict(list)
@@ -535,14 +601,13 @@ def run(data: Path, force=False, now=None, offline=False):
         rs = by_year.get(y, [])
         write_gz(tmp / "tracks" / f"{y}.json.gz", {"v": VERSION, "year": y, "storms": rs})
         years[str(y)] = {"n": len(rs), "bulletins": bul_year[y], "hires": round(hr_year[y] / max(1, bul_year[y]), 3)}
-    # bulletin months: 00/12 UTC, every analysis in the two newest months
+    # bulletin months: every 3-hourly analysis (the storm playback shows the one nearest the L)
     newest = [m for m, _ in months][-2:]
     for m, doc in months:
         y = int(m[:4])
         if y < FIRST_YEAR:
             continue
-        keep = doc["b"] if m in newest else [b for b in doc["b"] if b["t"][8:10] in ("00", "12")]
-        write_gz(tmp / "b" / m[:4] / f"{m[5:]}.json.gz", {"v": 1, "month": m, "b": keep})
+        write_gz(tmp / "b" / m[:4] / f"{m[5:]}.json.gz", {"v": 1, "month": m, "b": doc["b"]})
     index = {
         "v": VERSION,
         "generated": now.strftime("%Y-%m-%dT%H:%MZ"),
@@ -554,6 +619,7 @@ def run(data: Path, force=False, now=None, offline=False):
         "method": {
             "minLifeH": trk.MIN_LIFE_H, "gateKmh": trk.MAX_SPEED, "jumpKm": list(trk.JUMP_KM),
             "bench": list(BENCH), "overKm": OVER_KM,
+            "ringKm": dep.RING_KM, "sigDepth": SIG_DEPTH, "sigHours": SIG_HOURS, "primaryKm": PRIMARY_KM,
         },
         "indices": {"oni": oni, "nao": nao, "pna": pna},
         "bulletinMonths": [m for m, _ in months if int(m[:4]) >= FIRST_YEAR],
