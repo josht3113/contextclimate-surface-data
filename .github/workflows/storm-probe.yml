@@ -7,16 +7,16 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - run: pip install requests
-      - run: python probe/probe.py
+      - run: python probe/devfetch.py
       - name: Commit output
         run: |
           git config user.name "probe-bot"; git config user.email "probe@users.noreply.github.com"
-          git checkout --orphan storm-probe-out
+          git checkout --orphan storm-dev-data
           git rm -rf --cached . >/dev/null
-          git add -f probe_out
-          git commit -m "probe output" -q
-          git push -f origin storm-probe-out
+          git add -f dev_out
+          git commit -m "dev data" -q
+          git push -f origin storm-dev-data
