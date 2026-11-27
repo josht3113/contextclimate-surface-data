@@ -1,0 +1,22 @@
+name: Storm probe
+on:
+  push:
+    branches: [storm-probe]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - run: python probe/probe.py
+      - name: Commit output
+        run: |
+          git config user.name "probe-bot"; git config user.email "probe@users.noreply.github.com"
+          git checkout --orphan storm-probe-out
+          git rm -rf --cached . >/dev/null
+          git add -f probe_out
+          git commit -m "probe output" -q
+          git push -f origin storm-probe-out
