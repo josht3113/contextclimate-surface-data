@@ -67,9 +67,10 @@ for k,lows in frames:
         u=f'https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/surface/slp.{y}.nc'
         r=requests.get(u,headers=H,timeout=600)
         if not r.ok: P('R1',y,r.status_code); cur=y; F=None; continue
-        open('/tmp/r1.nc','wb').write(r.content); ds=netCDF4.Dataset('/tmp/r1.nc')
+        fn=f'/tmp/r1_{y}.nc'; open(fn,'wb').write(r.content); ds=netCDF4.Dataset(fn)
         F=np.array(ds.variables['slp'][:],dtype=np.float32)/100.0; tt=ds.variables['time']
         T0=netCDF4.num2date(tt[0],tt.units); nT=F.shape[0]; cur=y; P('R1',y,F.shape, str(netCDF4.num2date(tt[-1],tt.units)))
+        ds.close(); os.remove(fn)
         nextF=None
     if F is None: continue
     hrs=(d-datetime(T0.year,T0.month,T0.day,T0.hour)).total_seconds()/3600; i=hrs/6
