@@ -39,7 +39,7 @@ Depth (`scripts/storms_depth.py`): mean sea-level pressure on a 750 km ring arou
 its central pressure — NCEP/NCAR Reanalysis 1 (6-hourly, 2.5°) through 17 Mar 2026, when it stopped
 (precomputed: `static/storm-depth-r1.csv.gz`), GFS 1° analyses from the NOAA archive on AWS after
 that (cached; 0.6 mb bias to R1 removed). A storm is *significant* when it is the deepest low within
-800 km and at least 8 mb deep for 24 h in all, or a bomb, nor'easter or tropical cyclone; flag `u`
+800 km and at least 8 mb deep for 24 h in all (flag `k`), or a bomb or tropical cyclone; flag `u`
 marks storms that passed within 300 km of the lower 48 (`scripts/us48_mask.json`).
 
 Method (`scripts/storms_track.py`): each analysis's lows are matched to the next analysis by

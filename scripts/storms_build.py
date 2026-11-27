@@ -18,7 +18,7 @@ Storm record (all times are whole hours since 1970-01-01 UTC):
   ty   P Pacific · A Alberta clipper · C Colorado/lee · G Gulf · E East Coast · T tropical · O other
   f    flags: n nor'easter (Oct–Apr, up or out along the coast, within 600 km of 40°N 70°W) · b bomb · j redevelopment jump · q quasi-stationary or heat low ·
        m merged into another low · a still active · y active and younger than 24 h ·
-       s significant (see SIG_*) · u passed within 300 km of the lower 48
+       k deep (see SIG_*) · s significant (k, bomb or tropical) · u passed within 300 km of the lower 48
   mi   Miller type for nor'easters ("A"/"B"), when it can be told
   tc   tropical cyclone name (IBTrACS), when the storm was or became one
   pm   lowest pressure (mb), tm its hour offset
@@ -78,7 +78,7 @@ CPC = {
 ONI_SEASONS = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
 
 # significant storm: the deepest low within PRIMARY_KM, at least SIG_DEPTH mb below the ring mean,
-# for SIG_HOURS in all (12 h for a storm still going); bombs, nor'easters and tropical cyclones always
+# for SIG_HOURS in all (12 h for a storm still going) — flag k; bombs and tropical cyclones always
 PRIMARY_KM = 800.0
 SIG_DEPTH = 8.0
 SIG_HOURS = 24
@@ -470,7 +470,9 @@ def analyse(storms, latest_t, tc_names, depth=None, lows_at=None):
         # depth, significance, lower-48 scope
         known = [d for d in dd if d is not None]
         deep_h = 3 * sum(1 for d, q in zip(dd, pp) if d is not None and q and d >= SIG_DEPTH)
-        if deep_h >= (SIG_HOURS_ACTIVE if active else SIG_HOURS) or "b" in flags or "n" in flags or ty == "T":
+        if deep_h >= (SIG_HOURS_ACTIVE if active else SIG_HOURS):
+            flags.add("k")
+        if "k" in flags or "b" in flags or ty == "T":
             flags.add("s")
         if any(us48(p[1], p[2]) for p in pts):
             flags.add("u")
