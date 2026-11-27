@@ -32,6 +32,16 @@ coded surface bulletin since 2003 whenever a new analysis is in.
 - `storms/tracks/YYYY.json.gz` — storms that formed in that year (record format in `scripts/storms_build.py`).
 - `storms/b/YYYY/MM.json.gz` — the month's bulletins (lows + fronts) at 00 and 12 UTC; the two newest months keep every 3-hourly analysis.
 
+Positions are smoothed (`scripts/storms_smooth.py`: a Gaussian-weighted local linear fit over
+about ±12 h, wider for the whole-degree positions before 2011); pressures are WPC's.
+
+Depth (`scripts/storms_depth.py`): mean sea-level pressure on a 750 km ring around each low minus
+its central pressure — NCEP/NCAR Reanalysis 1 (6-hourly, 2.5°) through 17 Mar 2026, when it stopped
+(precomputed: `static/storm-depth-r1.csv.gz`), GFS 1° analyses from the NOAA archive on AWS after
+that (cached; 0.6 mb bias to R1 removed). A storm is *significant* when it is the deepest low within
+800 km and at least 8 mb deep for 24 h in all, or a bomb, nor'easter or tropical cyclone; flag `u`
+marks storms that passed within 300 km of the lower 48 (`scripts/us48_mask.json`).
+
 Method (`scripts/storms_track.py`): each analysis's lows are matched to the next analysis by
 minimum-cost assignment (distance from the predicted position plus pressure change, gated at
 100 km/h); a low may miss one analysis. Storms last at least 24 h. A secondary low east of the
@@ -48,6 +58,7 @@ Bulletin months are kept in the Actions cache and fetched again from the IEM arc
 - NWS Weather Prediction Center coded surface bulletins (AWIPS `CODSUS`), via the Iowa Environmental Mesonet text archive.
 - IBTrACS v04r01 (NOAA NCEI), North Atlantic and eastern North Pacific — tropical cyclone positions for the storm tracks.
 - NOAA CPC Oceanic Niño Index and monthly NAO / PNA indices.
+- NCEP/NCAR Reanalysis 1 sea-level pressure (NOAA PSL) and GFS analyses (NOAA Open Data on AWS) — storm depth.
 
 ## Workflow
 
