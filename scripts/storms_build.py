@@ -10,8 +10,7 @@ Inputs (kept in the Actions cache with the rest of data/, refetched when missing
 Published (data/site/storms/):
   index.json            years, latest analysis, climate indices, method constants
   tracks/YYYY.json.gz   storms that formed in YYYY
-  b/YYYY/MM.json.gz     the month's bulletins (fronts + lows) at 00 and 12 UTC; the two most
-                        recent months keep every 3-hourly analysis
+  b/YYYY/MM.json.gz     the month's bulletins (fronts + lows), every 3-hourly analysis
 
 Storm record (all times are whole hours since 1970-01-01 UTC):
   id   "YYYYMMDDHH-k" (genesis analysis, k-th storm that formed then)
@@ -599,14 +598,13 @@ def run(data: Path, force=False, now=None, offline=False):
         rs = by_year.get(y, [])
         write_gz(tmp / "tracks" / f"{y}.json.gz", {"v": VERSION, "year": y, "storms": rs})
         years[str(y)] = {"n": len(rs), "bulletins": bul_year[y], "hires": round(hr_year[y] / max(1, bul_year[y]), 3)}
-    # bulletin months: 00/12 UTC, every analysis in the two newest months
+    # bulletin months: every 3-hourly analysis (the storm playback shows the one nearest the L)
     newest = [m for m, _ in months][-2:]
     for m, doc in months:
         y = int(m[:4])
         if y < FIRST_YEAR:
             continue
-        keep = doc["b"] if m in newest else [b for b in doc["b"] if b["t"][8:10] in ("00", "12")]
-        write_gz(tmp / "b" / m[:4] / f"{m[5:]}.json.gz", {"v": 1, "month": m, "b": keep})
+        write_gz(tmp / "b" / m[:4] / f"{m[5:]}.json.gz", {"v": 1, "month": m, "b": doc["b"]})
     index = {
         "v": VERSION,
         "generated": now.strftime("%Y-%m-%dT%H:%MZ"),

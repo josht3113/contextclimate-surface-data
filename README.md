@@ -30,7 +30,7 @@ coded surface bulletin since 2003 whenever a new analysis is in.
 
 - `storms/index.json` — years and storm counts, the latest analysis, CPC ONI / NAO / PNA.
 - `storms/tracks/YYYY.json.gz` — storms that formed in that year (record format in `scripts/storms_build.py`).
-- `storms/b/YYYY/MM.json.gz` — the month's bulletins (lows + fronts) at 00 and 12 UTC; the two newest months keep every 3-hourly analysis.
+- `storms/b/YYYY/MM.json.gz` — the month's bulletins (lows + fronts), every 3-hourly analysis.
 
 Positions are smoothed (`scripts/storms_smooth.py`: a Gaussian-weighted local linear fit over
 about ±12 h, wider for the whole-degree positions before 2011); pressures are WPC's.
