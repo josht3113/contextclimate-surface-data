@@ -23,10 +23,31 @@ Frame files: int16 little-endian planes `t, td, u, v, p, refc` on a 0.125° grid
 
 Regridding: mean of the 3 km HRRR points within ~0.09° of each grid point.
 
+## Storm tracks (`storms/`)
+
+Low-pressure tracks for the ContextClimate Storm Tracks map, rebuilt from every WPC
+coded surface bulletin since 2003 whenever a new analysis is in.
+
+- `storms/index.json` — years and storm counts, the latest analysis, CPC ONI / NAO / PNA.
+- `storms/tracks/YYYY.json.gz` — storms that formed in that year (record format in `scripts/storms_build.py`).
+- `storms/b/YYYY/MM.json.gz` — the month's bulletins (lows + fronts) at 00 and 12 UTC; the two newest months keep every 3-hourly analysis.
+
+Method (`scripts/storms_track.py`): each analysis's lows are matched to the next analysis by
+minimum-cost assignment (distance from the predicted position plus pressure change, gated at
+100 km/h); a low may miss one analysis. Storms last at least 24 h. A secondary low east of the
+Rockies that forms 200–900 km downstream of a primary of 1012 mb or lower, deepens at least
+4 mb in 24 h and becomes as deep as the primary while it dies takes over the storm (drawn as a
+jump). Tropical cyclones are not in WPC's list of lows, so IBTrACS positions are added where
+WPC has none within 300 km.
+
+Bulletin months are kept in the Actions cache and fetched again from the IEM archive when missing.
+
 ## Sources
 
 - NOAA High-Resolution Rapid Refresh (HRRR), NOAA Open Data Dissemination program (AWS); only the needed GRIB2 messages are downloaded (byte ranges from the `.idx` files).
 - NWS Weather Prediction Center coded surface bulletins (AWIPS `CODSUS`), via the Iowa Environmental Mesonet text archive.
+- IBTrACS v04r01 (NOAA NCEI), North Atlantic and eastern North Pacific — tropical cyclone positions for the storm tracks.
+- NOAA CPC Oceanic Niño Index and monthly NAO / PNA indices.
 
 ## Workflow
 

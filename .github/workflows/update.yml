@@ -2,6 +2,7 @@ name: Update surface data
 
 # Hourly: new HRRR analyses (the past 24 h are kept), the newest complete 18-hour
 # HRRR forecast, WPC coded surface bulletins, and a check against METARs.
+# Storm tracks are rebuilt whenever a new WPC analysis is in (every 3 h).
 # HRRR analyses post about 50 min after the hour; GitHub's scheduler can run late.
 on:
   schedule:
@@ -41,6 +42,12 @@ jobs:
 
       - name: Build
         run: python scripts/build.py --data data
+
+      # Never holds up the surface data: a failure keeps the previous storm files.
+      - name: Storm tracks
+        continue-on-error: true
+        timeout-minutes: 20
+        run: python scripts/storms_build.py --data data
 
       - name: Save published window
         if: always() && hashFiles('data/site/manifest.json') != ''
