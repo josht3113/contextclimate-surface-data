@@ -1,0 +1,29 @@
+name: Storm tracks test (temporary)
+on:
+  push:
+    branches: [storms-v2]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Build from scratch, then again (second run must skip)
+        run: |
+          time python scripts/storms_build.py --data data
+          time python scripts/storms_build.py --data data
+      - name: Commit output
+        run: |
+          git config user.name "storm-test"; git config user.email "storm-test@users.noreply.github.com"
+          git checkout --orphan storm-test-out
+          git rm -rf --cached . >/dev/null
+          git add -f data/site/storms
+          git commit -m "storm test output" -q
+          git push -f origin storm-test-out
