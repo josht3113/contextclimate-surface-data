@@ -3,12 +3,25 @@ on:
   push:
     branches: [storm-probe]
 permissions:
-  contents: read
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - run: pip install requests netCDF4 numpy
-      - run: python probe/r1.py
+      - name: Bulletins from the dev branch
+        run: |
+          git fetch --depth 1 origin storm-dev-data
+          git archive FETCH_HEAD dev_out/bulletins | tar -x
+      - run: pip install requests netCDF4 numpy pygrib
+      - run: python probe/depth.py
+      - name: Commit output
+        if: always()
+        run: |
+          git config user.name "probe-bot"; git config user.email "probe@users.noreply.github.com"
+          git checkout --orphan storm-depth-out
+          git rm -rf --cached . >/dev/null
+          git add -f depth_out
+          git commit -m "depth" -q
+          git push -f origin storm-depth-out
