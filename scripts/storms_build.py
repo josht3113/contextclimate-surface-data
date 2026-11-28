@@ -10,12 +10,12 @@ Inputs (kept in the Actions cache with the rest of data/, refetched when missing
 Published (data/site/storms/):
   index.json            years, latest analysis, climate indices, method constants
   tracks/YYYY.json.gz   storms that formed in YYYY
-  b/YYYY/MM.json.gz     the month's bulletins (fronts + lows), every 3-hourly analysis
 
 Storm record (all times are whole hours since 1970-01-01 UTC):
   id   "YYYYMMDDHH-k" (genesis analysis, k-th storm that formed then)
   t    genesis time
-  ty   P Pacific · A Alberta clipper · C Colorado/lee · G Gulf · E East Coast · T tropical · O other
+  ty   P Pacific (incl. Great Basin) · A Alberta clipper · C Colorado/lee · G Gulf · E East Coast ·
+       T tropical · M Midwest (Great Lakes, Ohio/Tennessee valleys) · N Canada / interior Northeast · O other
   f    flags: n nor'easter (Oct–Apr, up or out along the coast, within 600 km of 40°N 70°W) · b bomb · j redevelopment jump · q quasi-stationary or heat low ·
        m merged into another low · a still active · y active and younger than 24 h ·
        k deep (see SIG_*) · s significant (k, bomb or tropical) · u passed within 300 km of the lower 48
@@ -101,7 +101,7 @@ def us48(lat, lon):
 
 TYPES = [
     ["P", "Pacific"], ["A", "Alberta clipper"], ["C", "Colorado / lee"], ["G", "Gulf"],
-    ["E", "East Coast"], ["T", "Tropical"], ["O", "Other"],
+    ["E", "East Coast"], ["T", "Tropical"], ["M", "Midwest"], ["N", "Canada"], ["O", "Other"],
 ]
 
 
@@ -283,7 +283,7 @@ def east_coast(lat, lon):
 
 
 def genesis_type(lat, lon):
-    if lon < -124 or lon > 0:
+    if lon < -124 or lon > 0 or (lon < -114 and lat < 46):      # incl. Great Basin / California interior
         return "P"
     if 46 <= lat <= 60 and -124 <= lon <= -100:
         return "A"
@@ -293,6 +293,10 @@ def genesis_type(lat, lon):
         return "G"
     if east_coast(lat, lon):
         return "E"
+    if 31 < lat < 49 and -98 < lon <= -78:                       # Great Lakes, Ohio and Tennessee valleys
+        return "M"
+    if lat >= 49 or (lat >= 44 and lon > -80):                    # Canada and the interior Northeast
+        return "N"
     return "O"
 
 
@@ -601,13 +605,6 @@ def run(data: Path, force=False, now=None, offline=False):
         rs = by_year.get(y, [])
         write_gz(tmp / "tracks" / f"{y}.json.gz", {"v": VERSION, "year": y, "storms": rs})
         years[str(y)] = {"n": len(rs), "bulletins": bul_year[y], "hires": round(hr_year[y] / max(1, bul_year[y]), 3)}
-    # bulletin months: every 3-hourly analysis (the storm playback shows the one nearest the L)
-    newest = [m for m, _ in months][-2:]
-    for m, doc in months:
-        y = int(m[:4])
-        if y < FIRST_YEAR:
-            continue
-        write_gz(tmp / "b" / m[:4] / f"{m[5:]}.json.gz", {"v": 1, "month": m, "b": doc["b"]})
     index = {
         "v": VERSION,
         "generated": now.strftime("%Y-%m-%dT%H:%MZ"),
@@ -622,8 +619,6 @@ def run(data: Path, force=False, now=None, offline=False):
             "ringKm": dep.RING_KM, "sigDepth": SIG_DEPTH, "sigHours": SIG_HOURS, "primaryKm": PRIMARY_KM,
         },
         "indices": {"oni": oni, "nao": nao, "pna": pna},
-        "bulletinMonths": [m for m, _ in months if int(m[:4]) >= FIRST_YEAR],
-        "fullMonths": newest,
     }
     (tmp / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     shutil.rmtree(site, ignore_errors=True)
